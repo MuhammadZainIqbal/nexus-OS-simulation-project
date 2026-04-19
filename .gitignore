@@ -1,0 +1,31 @@
+# Compiled Object files
+*.o
+*.out
+
+# Binaries
+master
+worker
+ui
+
+# Logs
+system_log.txt
+*.log
+
+# IPC leftovers (if any dumps are created)
+core
+core.*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*~
