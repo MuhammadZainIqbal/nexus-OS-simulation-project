@@ -844,3 +844,98 @@ int main(int argc, char *argv[]) {
  *   $ ipcrm -q <msgid>        # Remove message queue
  *
  * ═══════════════════════════════════════════════════════════════════════════════ */
+
+
+ import asyncio
+import databases
+import sqlalchemy
+from fastapi import FastAPI, BackgroundTasks, Request
+
+DATABASE_URL = "postgresql://user:password@localhost/testdb"
+database = databases.Database(DATABASE_URL)
+metadata = sqlalchemy.MetaData()
+
+app = FastAPI()
+
+# A mock internal cache that the AI must realize holds dirty user data
+processing_queue = []
+
+@app.on_event("startup")
+async def startup():
+    await database.connect()
+
+@app.on_event("shutdown")
+async def shutdown():
+    await database.disconnect()
+
+@app.post("/register-telemetry")
+async def register_telemetry(request: Request, background_tasks: BackgroundTasks):
+    # Payload: {"device_id": "DEV-99", "patch_notes": "1'; DROP TABLE users;--"}
+    payload = await request.json()
+    
+    # Context 1: Looks safe. Data is appended to an in-memory queue.
+    processing_queue.append(payload)
+    
+    # Context 2: Trigger async background processing
+    background_tasks.add_task(flush_telemetry_pipeline)
+    return {"status": "queued"}
+
+async def flush_telemetry_pipeline():
+    if not processing_queue:
+        return
+    
+    # Dequeue the raw user payload
+    item = processing_queue.pop(0)
+    notes = item.get("patch_notes")
+    
+    # VULNERABILITY: Second-Order Flow.
+    # The AI must trace 'patch_notes' from the API request, into the list, 
+    # out of the list, and into this raw string interpolation across async threads.
+    query = f"UPDATE device_logs SET logs = 'Processed' WHERE notes = '{notes}'"
+    
+    await database.execute(query=query)
+const express = require('express');
+const { exec } = require('child_process');
+const app = express();
+app.use(express.json());
+
+// Unsafe deep merge utility common in legacy code or custom utilities
+function unsafeMerge(target, source) {
+    for (let key in source) {
+        if (source.hasOwnProperty(key)) {
+            
+            if (typeof target[key] === 'object' && typeof source[key] === 'object') {
+                unsafeMerge(target[key], source[key]);
+            } else {
+                target[key] = source[key];
+            }
+        }
+    }
+    return target;
+}
+
+app.post('/api/config', (req, res) => {
+    let userSessionConfig = {};
+    
+    
+    Payload to pollute the global Object prototype:
+    {
+        "__proto__": {
+            "shell": "node",
+            "env": { "NODE_OPTIONS": "--inspect-brk=0.0.0.0:4444" }
+        }
+    }
+    
+    unsafeMerge(userSessionConfig, req.body);
+    
+    res.json({ status: "Config updated" });
+});
+
+app.get('/api/system-status', (req, res) => {
+    
+    exec('echo "System Active"', (error, stdout, stderr) => {
+        res.json({ output: stdout.trim() });
+    });
+});
+
+app.listen(3000);
